@@ -1,9 +1,15 @@
 import { TODO_LIST } from '@/constants/mock-data'
 import { useEffect, useState } from 'react'
 
+interface FoodItemResult {
+  type: string
+  name: string
+  time: number
+  count: number
+}
 interface Result {
   type: string
-  item: FoodItem[]
+  item: FoodItemResult[]
 }
 
 interface FoodItem {
@@ -19,7 +25,13 @@ const OnePage = () => {
     setResult(
       result.map((v) => ({
         type: v.type,
-        item: food.type === v.type ? [...v.item, food] : v.item,
+        item:
+          food.type === v.type
+            ? [
+                ...v.item,
+                { ...food, time: new Date().getTime() + 5000, count: 5 },
+              ]
+            : v.item,
       }))
     )
     setFoodList(foodList.filter((v) => v.name !== food.name))
@@ -54,6 +66,38 @@ const OnePage = () => {
     }
   }, [])
 
+  const countResult = result.reduce((acc, cur) => {
+    return (acc += cur.item.length)
+  }, 0)
+
+  useEffect(() => {
+    let intervalTask: number = 0
+    intervalTask = setInterval(() => {
+      const newResult: Result[] = []
+      const newFood: FoodItem[] = []
+      result.forEach((item) => {
+        const value = item.item.reduce(
+          (acc: FoodItemResult[], cur: FoodItemResult) => {
+            const currentTime = new Date().getTime()
+            const diff = cur.time - currentTime
+            if (diff <= 0) {
+              newFood.push(cur)
+              return acc
+            }
+            return [...acc, { ...cur, count: Number((diff / 1000).toFixed(2)) }]
+          },
+          []
+        )
+        newResult.push({ ...item, item: value })
+      })
+      setFoodList([...foodList, ...newFood])
+      setResult(newResult)
+    }, 100)
+    if (countResult === 0) clearInterval(intervalTask)
+    return () => clearInterval(intervalTask)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countResult, result])
+
   return (
     <div className='max-w-[1200px] m-auto pt-4 flex gap-2 min-h-[calc(100vh-96px)] px-4'>
       <div className='w-[300px] space-y-2 py-1'>
@@ -85,9 +129,10 @@ const OnePage = () => {
                     <li
                       onClick={() => handleRemoveFoodInResult(item)}
                       key={`food-${resultData.type}-${index}`}
-                      className='border px-2 py-1 text-center cursor-pointer'
+                      className='border px-3 py-1 text-center cursor-pointer w-full flex items-center justify-between'
                     >
-                      {item.name}
+                      {item.name}{' '}
+                      <span className='text-gray-400'>({item.count}s)</span>
                     </li>
                   )
                 })}
