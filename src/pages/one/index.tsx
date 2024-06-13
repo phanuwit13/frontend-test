@@ -1,15 +1,9 @@
 import { TODO_LIST } from '@/constants/mock-data'
 import { useEffect, useState } from 'react'
 
-interface FoodItemResult {
-  type: string
-  name: string
-  time: number
-  count: number
-}
 interface Result {
   type: string
-  item: FoodItemResult[]
+  item: FoodItem[]
 }
 
 interface FoodItem {
@@ -20,25 +14,24 @@ interface FoodItem {
 const OnePage = () => {
   const [result, setResult] = useState<Result[]>([])
   const [foodList, setFoodList] = useState<FoodItem[]>([])
+  const [countdownList, setCountdownList] = useState<{ [key: string]: number }>(
+    {}
+  )
 
   const handleAddFoodInResult = (food: FoodItem) => {
-    setResult(
-      result.map((v) => ({
-        type: v.type,
-        item:
-          food.type === v.type
-            ? [
-                ...v.item,
-                { ...food, time: new Date().getTime() + 5000, count: 5 },
-              ]
-            : v.item,
-      }))
-    )
+    const newResult = result.map((v) => ({
+      type: v.type,
+      item: food.type === v.type ? [...v.item, food] : v.item,
+    }))
+    setResult(newResult)
     setFoodList(foodList.filter((v) => v.name !== food.name))
+    const newCount = { [food.name]: 5000 }
+    setCountdownList((prev) => ({ ...prev, ...newCount }))
+    startCount(food)
   }
 
   const handleRemoveFoodInResult = (food: FoodItem) => {
-    setResult(
+    setResult((result) =>
       result.map((v) => ({
         type: v.type,
         item:
@@ -47,13 +40,31 @@ const OnePage = () => {
             : v.item,
       }))
     )
-    if (
-      !foodList.some(
-        (item) => item.name === food.name && item.type === food.type
-      )
-    ) {
-      setFoodList([...foodList, food])
-    }
+    setFoodList((foodList) => [...foodList, food])
+    setCountdownList((prev) => {
+      const newState = { ...prev }
+      delete newState[food.name]
+      return newState
+    })
+  }
+
+  const startCount = (food: FoodItem) => {
+    const intervalTask = setInterval(() => {
+      setCountdownList((prevCount) => {
+        const newTime = prevCount[food.name] - 100
+        if (isNaN(newTime)) clearInterval(intervalTask)
+        if (newTime === 0) {
+          clearInterval(intervalTask)
+          handleRemoveFoodInResult(food)
+          setCountdownList((prev) => {
+            const newState = { ...prev }
+            delete newState[food.name]
+            return newState
+          })
+        }
+        return { ...prevCount, [food.name]: newTime }
+      })
+    }, 100)
   }
 
   useEffect(() => {
@@ -66,40 +77,8 @@ const OnePage = () => {
     }
   }, [])
 
-  const countResult = result.reduce((acc, cur) => {
-    return (acc += cur.item.length)
-  }, 0)
-
-  useEffect(() => {
-    let intervalTask: number = 0
-    intervalTask = setInterval(() => {
-      const newResult: Result[] = []
-      const newFood: FoodItem[] = []
-      result.forEach((item) => {
-        const value = item.item.reduce(
-          (acc: FoodItemResult[], cur: FoodItemResult) => {
-            const currentTime = new Date().getTime()
-            const diff = cur.time - currentTime
-            if (diff <= 0) {
-              newFood.push(cur)
-              return acc
-            }
-            return [...acc, { ...cur, count: Number((diff / 1000).toFixed(2)) }]
-          },
-          []
-        )
-        newResult.push({ ...item, item: value })
-      })
-      setFoodList([...foodList, ...newFood])
-      setResult(newResult)
-    }, 100)
-    if (countResult === 0) clearInterval(intervalTask)
-    return () => clearInterval(intervalTask)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countResult, result])
-
   return (
-    <div className='max-w-[1200px] m-auto pt-4 flex gap-2 min-h-[calc(100vh-96px)] px-4'>
+    <div className='max-w-[1200px] m-auto pt-4 flex items-start gap-2 min-h-[calc(100vh-96px)] px-4'>
       <div className='w-[300px] space-y-2 py-1'>
         <div className='bg-gray-100 px-2 py-1 text-center'>LIST</div>
         <ul className='space-y-2'>
@@ -116,14 +95,14 @@ const OnePage = () => {
           })}
         </ul>
       </div>
-      <div className='w-full bg-gray-50 grid grid-cols-2 gap-4 px-4 py-1'>
+      <div className='w-full bg-gray-50 flex flex-wrap gap-4 px-4 py-1'>
         {result.map((resultData) => {
           return (
-            <div key={resultData.type} className='max-h-[200px]'>
+            <div key={resultData.type} className='flex-grow basis-[200px]'>
               <div className='bg-gray-100 px-2 py-1 text-center'>
                 {resultData.type}
               </div>
-              <ul className='bg-white h-full space-y-2 overflow-auto py-2'>
+              <ul className='bg-white space-y-2 overflow-auto py-2 h-[280px]'>
                 {resultData.item.map((item, index) => {
                   return (
                     <li
@@ -132,7 +111,9 @@ const OnePage = () => {
                       className='border px-3 py-1 text-center cursor-pointer w-full flex items-center justify-between'
                     >
                       {item.name}{' '}
-                      <span className='text-gray-400'>({item.count}s)</span>
+                      <span className='text-gray-400'>
+                        ({countdownList[item.name] / 1000}s)
+                      </span>
                     </li>
                   )
                 })}
